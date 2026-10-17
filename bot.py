@@ -19,11 +19,14 @@ from functools import wraps
 from flask import Flask, request, jsonify, Response, g, session
 
 # ==========================================================
-# الإعدادات
+# الإعدادات (تم وضع رابط قاعدة البيانات مباشرة هنا)
 # ==========================================================
 PORT            = int(os.environ.get("PORT", 5000))
 HOST            = "0.0.0.0"
-DATABASE_URL    = os.environ.get("DATABASE_URL")
+
+# 👇 الرابط الخاص بك تم وضعه هنا مباشرة 👇
+DATABASE_URL    = "postgresql://neondb_owner:npg_FEvO3zoHUcQ0@ep-aged-fog-b52d2rjf-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"
+
 ADMIN_PASS_ENV  = os.environ.get("ADMIN_PASS", "admin123")
 SECRET          = os.environ.get("SECRET") or secrets.token_hex(32)
 SELF_URL        = (os.environ.get("SELF_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")
