@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DSS Server — Database-as-a-Service (PostgreSQL/Neon Edition)
-سيرفر تخزين ومزامنة لحظية بواجهة فخمة + مفاتيح API + Self-Ping.
+سيرفر تخزين ومزامنة لحظية بواجهة تطبيق APK فخمة + مفاتيح API + Self-Ping.
 جاهز للنشر على Render مباشرة.
 """
 import os
@@ -35,7 +35,9 @@ START_TS        = int(time.time())
 
 app = Flask(__name__)
 app.secret_key = SECRET
-app.config["MAX_CONTENT_LENGTH"] = 6 * 1024 * 1024
+
+# 🟢 زيادة الحد الأقصى لحجم الملفات إلى 50 ميجابايت لدعم التطبيقات الكبيرة
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024 
 
 # ==========================================================
 # قاعدة البيانات (PostgreSQL - Neon)
@@ -642,155 +644,221 @@ def stream_collection(collection):
                              "Connection": "keep-alive"})
 
 # ==========================================================
-# HTML Dashboard (نفسه، لم يتغير)
+# HTML Dashboard (تطبيق APK فخم)
 # ==========================================================
 DASHBOARD_HTML = r"""<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DSS — لوحة التحكم</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#070709">
+<title>DSS — لوحة التحكم VIP</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#07070b;--card:rgba(255,255,255,.035);--line:rgba(212,175,106,.2);--line-soft:rgba(255,255,255,.07);--gold:#d4af6a;--gold2:#f2dca6;--gold3:#a67c34;--text:#f3f0e9;--muted:#9b968c;--muted2:#6f6b63;--ok:#6bd39a;--danger:#e06b6b}
-html,body{height:100%}
-body{font-family:'Cairo',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;line-height:1.7;-webkit-font-smoothing:antialiased}
-body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(60% 45% at 88% -8%,rgba(212,175,106,.12),transparent 62%),radial-gradient(52% 42% at -5% 18%,rgba(122,90,205,.06),transparent 62%)}
-a{color:inherit;text-decoration:none}
-button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
-input,select,textarea{font:inherit;color:inherit}
-::selection{background:rgba(212,175,106,.32);color:#fff}
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-thumb{background:#2a2418;border-radius:20px}
-
-#loginScreen{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#14100a,#07070b 70%)}
-.login-card{width:min(400px,90%);padding:38px 30px;border-radius:26px;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.01));border:1px solid var(--line);box-shadow:0 40px 100px -30px #000;text-align:center}
-.login-mark{width:80px;height:80px;margin:0 auto 20px;display:grid;place-items:center;font-family:Georgia,serif;font-size:44px;color:var(--gold);border:1.5px solid rgba(212,175,106,.5);border-radius:26px 8px 26px 8px;background:rgba(212,175,106,.08);box-shadow:inset 0 0 40px -12px rgba(212,175,106,.8)}
-.login-card h1{font-size:22px;font-weight:900;margin-bottom:6px}
-.login-card p{color:var(--muted);font-size:12.5px;margin-bottom:22px}
-.login-card input{width:100%;padding:13px 16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:13px;outline:none;font-size:14px;text-align:center;letter-spacing:2px;margin-bottom:12px}
-.login-card input:focus{border-color:var(--gold);box-shadow:0 0 0 4px rgba(212,175,106,.1)}
-
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 22px;border-radius:12px;font-size:13px;font-weight:800;transition:transform .2s,box-shadow .2s,background .2s,border-color .2s;user-select:none}
-.btn:active{transform:scale(.97)}
-.btn-gold{color:#1b1408;background:linear-gradient(135deg,var(--gold2),var(--gold) 55%,#c99f55);box-shadow:0 12px 30px -12px rgba(212,175,106,.9)}
-.btn-gold:hover{transform:translateY(-2px)}
-.btn-ghost{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03)}
-.btn-ghost:hover{border-color:var(--line);background:rgba(212,175,106,.06)}
-.btn-danger{color:#ffd4d4;border:1px solid rgba(224,107,107,.35);background:rgba(224,107,107,.1)}
-.btn-danger:hover{background:rgba(224,107,107,.2)}
-.btn-sm{min-height:34px;padding:6px 14px;font-size:11.5px;border-radius:9px}
-.btn-block{width:100%}
-
-#app{display:grid;grid-template-columns:260px 1fr;min-height:100vh;position:relative;z-index:1}
-.sidebar{border-inline-end:1px solid var(--line-soft);padding:22px 16px;background:linear-gradient(180deg,rgba(20,20,28,.6),rgba(10,10,15,.8));display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh;backdrop-filter:blur(20px)}
-.sidebar-logo{display:flex;align-items:center;gap:11px;padding:8px;margin-bottom:20px}
-.sidebar-logo-mark{width:40px;height:40px;display:grid;place-items:center;font-family:Georgia,serif;font-size:24px;color:var(--gold);border:1px solid rgba(212,175,106,.55);border-radius:13px 4px 13px 4px;background:rgba(212,175,106,.08);box-shadow:inset 0 0 22px -10px rgba(212,175,106,.9)}
-.sidebar-logo b{font-size:15px;font-weight:900}
-.sidebar-logo small{font-size:10.5px;color:var(--muted)}
-.sidebar-nav{display:flex;flex-direction:column;gap:4px}
-.nav-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;transition:.25s;user-select:none}
-.nav-item:hover{background:rgba(212,175,106,.06);color:var(--gold2)}
-.nav-item.active{background:linear-gradient(135deg,rgba(212,175,106,.2),rgba(212,175,106,.06));color:var(--gold2);border:1px solid var(--line)}
-.nav-item .ic{width:18px;height:18px;display:grid;place-items:center}
-.sidebar-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--line-soft)}
-.sidebar-status{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);padding:10px 12px;background:rgba(107,211,154,.06);border:1px solid rgba(107,211,154,.2);border-radius:10px;margin-bottom:10px}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(107,211,154,.6);animation:pulse 2s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(107,211,154,.5)}70%{box-shadow:0 0 0 8px rgba(107,211,154,0)}100%{box-shadow:0 0 0 0 rgba(107,211,154,0)}}
-
-.main{padding:26px 32px 40px;overflow-x:hidden}
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:26px}
-.page-title{font-size:clamp(22px,3vw,32px);font-weight:900;line-height:1.3}
-.page-sub{color:var(--muted);font-size:13px;margin-top:4px}
-.server-url{display:flex;align-items:center;gap:8px;padding:9px 14px;background:rgba(255,255,255,.03);border:1px solid var(--line-soft);border-radius:100px;font-size:11.5px;font-family:'JetBrains Mono',monospace;color:var(--gold2)}
-.server-url b{color:var(--muted);font-family:'Cairo';font-weight:700;font-size:10.5px}
-
-.section{display:none}
-.section.active{display:block;animation:fadeIn .35s ease both}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-
-.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
-.stat-card{padding:20px;border-radius:16px;border:1px solid var(--line-soft);background:linear-gradient(155deg,rgba(255,255,255,.05),rgba(255,255,255,.012));position:relative;overflow:hidden}
-.stat-card::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 100% 0%,rgba(212,175,106,.1),transparent 60%);pointer-events:none}
-.stat-label{font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:6px}
-.stat-value{font-size:28px;font-weight:900;color:var(--gold2);line-height:1.2;font-variant-numeric:tabular-nums}
-.stat-extra{font-size:11px;color:var(--muted2);margin-top:4px}
-
-.card{border-radius:18px;border:1px solid var(--line-soft);background:linear-gradient(155deg,rgba(255,255,255,.05),rgba(255,255,255,.012));padding:22px;margin-bottom:18px}
-.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-.card-title{font-size:15.5px;font-weight:800}
-
-.chart{display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:10px}
-.chart-bar{flex:1;background:linear-gradient(180deg,var(--gold),var(--gold3));border-radius:4px 4px 0 0;min-height:3px;transition:transform .2s;position:relative}
-.chart-bar:hover{transform:scaleY(1.08);background:var(--gold2)}
-.chart-bar::after{content:attr(data-val);position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--gold2);opacity:0;transition:.2s;white-space:nowrap;font-family:'JetBrains Mono',monospace}
-.chart-bar:hover::after{opacity:1}
-
-table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{text-align:start;padding:10px 12px;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--line-soft)}
-td{padding:12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(212,175,106,.03)}
-.mono{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--gold2)}
-
-.badge{display:inline-block;padding:3px 9px;border-radius:100px;font-size:10px;font-weight:800;white-space:nowrap}
-.badge.ok{background:rgba(107,211,154,.12);color:var(--ok);border:1px solid rgba(107,211,154,.3)}
-.badge.off{background:rgba(224,107,107,.12);color:var(--danger);border:1px solid rgba(224,107,107,.3)}
-.badge.gold{background:rgba(212,175,106,.12);color:var(--gold2);border:1px solid var(--line)}
-
-input[type=text],input[type=password],select,textarea{width:100%;padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:11px;outline:none;font-size:13px;transition:.2s}
-input:focus,select:focus,textarea:focus{border-color:var(--gold);background:rgba(212,175,106,.05);box-shadow:0 0 0 3px rgba(212,175,106,.09)}
-textarea{resize:vertical;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;min-height:100px}
-label{display:block;font-size:12px;font-weight:800;margin-bottom:6px;color:#d9d5cc}
-.field{margin-bottom:14px}
-.row{display:flex;gap:10px;flex-wrap:wrap}
-.row>*{flex:1;min-width:160px}
-
-.feed{max-height:500px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
-.feed-item{padding:10px 13px;border-radius:10px;background:rgba(255,255,255,.025);border:1px solid var(--line-soft);font-size:12px;display:flex;gap:10px;align-items:center}
-.feed-item .tag{font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;background:rgba(212,175,106,.15);color:var(--gold2);white-space:nowrap}
-.feed-item.insert .tag{background:rgba(107,211,154,.15);color:var(--ok)}
-.feed-item.delete .tag{background:rgba(224,107,107,.15);color:var(--danger)}
-.feed-item .time{color:var(--muted2);font-size:10.5px;font-family:'JetBrains Mono',monospace;margin-inline-start:auto}
-
-.play-row{display:grid;grid-template-columns:100px 1fr 100px;gap:8px;margin-bottom:12px}
-.play-result{padding:14px;background:#050508;border:1px solid var(--line-soft);border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#d1ccc0;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow:auto}
-
-#toasts{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:500;display:flex;flex-direction:column;gap:8px;width:min(400px,calc(100% - 32px));pointer-events:none}
-.toast{padding:12px 18px;border-radius:12px;font-size:12.5px;font-weight:700;background:rgba(22,22,28,.96);border:1px solid rgba(255,255,255,.12);box-shadow:0 20px 40px -16px #000;backdrop-filter:blur(14px);opacity:0;transform:translateY(12px);transition:opacity .3s,transform .3s}
-.toast.in{opacity:1;transform:none}
-.toast.ok{border-color:rgba(107,211,154,.4);color:#c9f4dc}
-.toast.err{border-color:rgba(224,107,107,.45);color:#ffd4d4}
-
-.modal{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(4,4,6,.85);backdrop-filter:blur(8px)}
-.modal.open{display:flex;animation:fadeIn .25s both}
-.modal-box{position:relative;width:min(480px,100%);padding:28px;border-radius:22px;background:linear-gradient(165deg,#141420,#0a0a10);border:1px solid var(--line);box-shadow:0 40px 100px -30px #000;animation:popIn .35s cubic-bezier(.2,.8,.3,1) both}
-@keyframes popIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
-.modal-x{position:absolute;top:12px;inset-inline-end:12px;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:rgba(10,10,14,.8);color:var(--text);border:1px solid rgba(255,255,255,.14);font-size:14px}
-.modal-x:hover{color:var(--danger)}
-
-@media(max-width:900px){
-  #app{grid-template-columns:1fr}
-  .sidebar{position:relative;height:auto;flex-direction:row;overflow-x:auto;border-inline-end:none;border-bottom:1px solid var(--line-soft);padding:12px}
-  .sidebar-logo{margin-bottom:0;padding:4px 10px}
-  .sidebar-nav{flex-direction:row;gap:2px}
-  .nav-item{white-space:nowrap;padding:9px 12px;font-size:12px}
-  .nav-item .ic{display:none}
-  .sidebar-foot{display:none}
-  .main{padding:20px 16px}
-  .stat-grid{grid-template-columns:repeat(2,1fr)}
-  .play-row{grid-template-columns:1fr}
+/* Reset & Vars */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; height: 100%; }
+body {
+  height: 100dvh;
+  display: flex; flex-direction: column;
+  font-family: 'Cairo', system-ui, sans-serif;
+  background: #070709; color: #f3f0e9;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
-@media(max-width:500px){
-  .stat-grid{grid-template-columns:1fr 1fr;gap:10px}
-  .stat-value{font-size:22px}
-  th,td{padding:8px 6px;font-size:11px}
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(circle at 80% -10%, rgba(212,175,106,.15), transparent 60%),
+              radial-gradient(circle at -10% 20%, rgba(122,90,205,.08), transparent 60%);
+}
+:root {
+  --gold: #d4af6a; --gold-2: #f2dca6; --gold-3: #a67c34;
+  --text: #f3f0e9; --muted: #9b968c; --muted-2: #6f6b63;
+  --line: rgba(212,175,106,.25); --line-soft: rgba(255,255,255,.08);
+  --card: rgba(255,255,255,.04); --ok: #6bd39a; --danger: #e06b6b;
+  --r: 20px; --r-sm: 14px;
+  --appbar-h: 60px;
+  --tabbar-h: 70px;
+}
+button, input, select, textarea { font: inherit; color: inherit; outline: none; }
+button { cursor: pointer; background: none; border: none; }
+a { color: inherit; text-decoration: none; }
+::selection { background: rgba(212,175,106,.3); color: #fff; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: rgba(212,175,106,.3); border-radius: 10px; }
+
+/* Splash */
+#splash {
+  position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
+  background: #070709; transition: opacity .5s;
+}
+#splash.hide { opacity: 0; pointer-events: none; }
+.splash-mark {
+  width: 90px; height: 90px; display: grid; place-items: center;
+  font-family: Georgia, serif; font-size: 45px; color: var(--gold);
+  border: 1.5px solid var(--line); border-radius: 28px 10px 28px 10px;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); box-shadow: 0 0 40px rgba(212,175,106,.4); } }
+
+/* Login */
+#loginScreen {
+  position: fixed; inset: 0; z-index: 2000; display: flex; align-items: flex-start; justify-content: center;
+  background: #070709; padding: 20px; overflow-y: auto;
+}
+.login-card {
+  width: 100%; max-width: 360px; margin-top: 40px; margin-bottom: 40px;
+  background: linear-gradient(155deg, rgba(255,255,255,.06), rgba(255,255,255,.01));
+  border: 1px solid var(--line); border-radius: 24px; padding: 30px 24px;
+  box-shadow: 0 20px 60px -15px #000; text-align: center;
+}
+.login-mark {
+  width: 70px; height: 70px; margin: 0 auto 20px; display: grid; place-items: center;
+  font-family: Georgia, serif; font-size: 38px; color: var(--gold);
+  border: 1.5px solid rgba(212,175,106,.5); border-radius: 20px 6px 20px 6px;
+  background: rgba(212,175,106,.08);
+}
+.login-card h1 { font-size: 22px; font-weight: 900; margin-bottom: 6px; }
+.login-card p { color: var(--muted); font-size: 12.5px; margin-bottom: 22px; }
+.login-card input {
+  width: 100%; padding: 14px; background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.12); border-radius: 13px;
+  font-size: 16px; text-align: center; letter-spacing: 2px; margin-bottom: 15px;
+}
+.login-card input:focus { border-color: var(--gold); background: rgba(212,175,106,.08); }
+
+/* App Header */
+.appbar {
+  flex-shrink: 0; height: var(--appbar-h); z-index: 80;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; background: rgba(7,7,9,.92);
+  border-bottom: 1px solid var(--line-soft); backdrop-filter: blur(20px);
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark {
+  width: 38px; height: 38px; display: grid; place-items: center;
+  font-family: Georgia, serif; font-size: 22px; color: var(--gold);
+  border: 1px solid var(--line); border-radius: 12px 4px 12px 4px;
+  background: rgba(212,175,106,.08);
+}
+.brand-text b { font-size: 15px; font-weight: 900; display: block; line-height: 1.2; }
+.brand-text span { font-size: 9.5px; color: var(--muted); }
+.status-pill {
+  display: flex; align-items: center; gap: 6px; font-size: 10.5px;
+  color: var(--muted); border: 1px solid var(--line-soft);
+  background: rgba(255,255,255,.03); padding: 6px 12px; border-radius: 100px;
+}
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--ok);
+  box-shadow: 0 0 8px var(--ok); animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot { 0% { box-shadow: 0 0 0 0 rgba(107,211,154,.5); } 70% { box-shadow: 0 0 0 8px rgba(107,211,154,0); } 100% { box-shadow: 0 0 0 0 rgba(107,211,154,0); } }
+
+/* Main Content */
+main { flex: 1; overflow-y: auto; overflow-x: hidden; padding-bottom: 20px; -webkit-overflow-scrolling: touch; }
+.view { display: none; animation: fadeIn .3s ease; }
+.view.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.wrap { width: min(100% - 32px, 800px); margin-inline: auto; padding-top: 20px; }
+
+/* Bottom Tabbar */
+.tabbar {
+  flex-shrink: 0; height: var(--tabbar-h); z-index: 100;
+  display: flex; align-items: center; padding: 0 6px;
+  background: rgba(12,12,16,.98); border-top: 1px solid var(--line-soft);
+  backdrop-filter: blur(20px);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--muted); font-size: 9px; font-weight: 800; position: relative;
+  padding: 4px 0; transition: .2s;
+}
+.tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+.tab.active { color: var(--gold); }
+.tab.active svg { transform: translateY(-2px); }
+
+/* UI Elements */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 10px 20px; border-radius: 14px;
+  font-size: 13px; font-weight: 800; transition: .2s;
+}
+.btn:active { transform: scale(.96); }
+.btn-gold { color: #1b1408; background: linear-gradient(135deg, var(--gold-2), var(--gold) 55%, #c99f55); box-shadow: 0 8px 25px -10px rgba(212,175,106,.8); }
+.btn-ghost { color: var(--text); border: 1px solid var(--line-soft); background: rgba(255,255,255,.03); }
+.btn-danger { color: #ffd4d4; border: 1px solid rgba(224,107,107,.3); background: rgba(224,107,107,.1); }
+.btn-sm { min-height: 36px; padding: 6px 14px; font-size: 11.5px; border-radius: 10px; }
+.btn-block { width: 100%; }
+
+.card { background: linear-gradient(155deg, rgba(255,255,255,.05), rgba(255,255,255,.01)); border: 1px solid var(--line-soft); border-radius: var(--r); padding: 20px; margin-bottom: 15px; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 12px; font-weight: 800; margin-bottom: 8px; color: #d9d5cc; }
+input[type=text], input[type=password], select, textarea {
+  width: 100%; padding: 14px; background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1); border-radius: 12px;
+  font-size: 16px; transition: .2s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--gold); background: rgba(212,175,106,.08); }
+textarea { resize: vertical; min-height: 100px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+/* Stats */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.stat-box { background: var(--card); border: 1px solid var(--line-soft); padding: 16px; border-radius: var(--r-sm); text-align: center; }
+.stat-box b { display: block; font-size: 26px; font-weight: 900; color: var(--gold); line-height: 1.2; }
+.stat-box span { font-size: 11.5px; color: var(--muted); font-weight: 700; }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th { text-align: start; padding: 10px 12px; font-size: 11px; font-weight: 800; color: var(--muted); border-bottom: 1px solid var(--line-soft); }
+td { padding: 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+tr:hover td { background: rgba(212,175,106,.03); }
+.mono { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--gold-2); }
+
+/* Feed */
+.feed { max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.feed-item { padding: 12px; border-radius: 12px; background: rgba(255,255,255,.025); border: 1px solid var(--line-soft); font-size: 12px; display: flex; gap: 10px; align-items: center; }
+.feed-item .tag { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: rgba(212,175,106,.15); color: var(--gold-2); }
+.feed-item.insert .tag { background: rgba(107,211,154,.15); color: var(--ok); }
+.feed-item.delete .tag { background: rgba(224,107,107,.15); color: var(--danger); }
+.feed-item .time { color: var(--muted-2); font-size: 10.5px; font-family: 'JetBrains Mono', monospace; margin-inline-start: auto; }
+
+/* Chart */
+.chart { display: flex; align-items: flex-end; gap: 4px; height: 100px; padding-top: 10px; }
+.chart-bar { flex: 1; background: linear-gradient(180deg, var(--gold), var(--gold-3)); border-radius: 4px 4px 0 0; min-height: 3px; transition: transform .2s; }
+.chart-bar:hover { transform: scaleY(1.08); background: var(--gold-2); }
+
+/* Playground */
+.play-result { padding: 14px; background: #050508; border: 1px solid var(--line-soft); border-radius: 10px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #d1ccc0; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow: auto; }
+
+/* Toast & Modal */
+#toasts { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 500; display: flex; flex-direction: column; gap: 8px; width: min(400px, calc(100% - 32px)); pointer-events: none; }
+.toast { padding: 12px 18px; border-radius: 12px; font-size: 12.5px; font-weight: 700; background: rgba(22,22,28,.96); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 20px 40px -16px #000; backdrop-filter: blur(14px); opacity: 0; transform: translateY(12px); transition: opacity .3s, transform .3s; }
+.toast.in { opacity: 1; transform: none; }
+.toast.ok { border-color: rgba(107,211,154,.4); color: #c9f4dc; }
+.toast.err { border-color: rgba(224,107,107,.45); color: #ffd4d4; }
+
+.modal { position: fixed; inset: 0; z-index: 400; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(4,4,6,.85); backdrop-filter: blur(10px); }
+.modal.open { display: flex; animation: fadeIn .25s both; }
+.modal-box { position: relative; width: min(420px, 100%); padding: 24px; border-radius: 22px; background: linear-gradient(165deg, #141420, #0a0a10); border: 1px solid var(--line); box-shadow: 0 40px 100px -30px #000; }
+.modal-x { position: absolute; top: 12px; inset-inline-end: 12px; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: rgba(10,10,14,.8); color: var(--text); border: 1px solid rgba(255,255,255,.14); font-size: 14px; }
+
+@media (min-width: 600px) {
+  .stat-grid { grid-template-columns: repeat(4, 1fr); }
 }
 </style>
 </head>
 <body>
 
+<!-- Splash -->
+<div id="splash">
+  <div class="splash-mark">D</div>
+</div>
+
+<!-- Login -->
 <div id="loginScreen">
   <div class="login-card">
     <div class="login-mark">D</div>
@@ -801,145 +869,176 @@ label{display:block;font-size:12px;font-weight:800;margin-bottom:6px;color:#d9d5
   </div>
 </div>
 
-<div id="app" style="display:none">
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <span class="sidebar-logo-mark">D</span>
-      <div><b>DSS</b><br><small>Database-as-a-Service</small></div>
+<!-- App Wrapper -->
+<div id="app" style="display: none; height: 100%; flex-direction: column;">
+  <!-- Header -->
+  <header class="appbar">
+    <div class="brand">
+      <span class="brand-mark">D</span>
+      <span class="brand-text">
+        <b>DSS <span class="gold">Control</span></b>
+        <span>Database-as-a-Service</span>
+      </span>
     </div>
-    <nav class="sidebar-nav">
-      <div class="nav-item active" data-section="overview"><span class="ic">▤</span> نظرة عامة</div>
-      <div class="nav-item" data-section="keys"><span class="ic">🔑</span> مفاتيح API</div>
-      <div class="nav-item" data-section="data"><span class="ic">🗄️</span> مستكشف البيانات</div>
-      <div class="nav-item" data-section="live"><span class="ic">◉</span> البث اللحظي</div>
-      <div class="nav-item" data-section="playground"><span class="ic">&lt;/&gt;</span> اختبار API</div>
-      <div class="nav-item" data-section="settings"><span class="ic">⚙</span> الإعدادات</div>
-    </nav>
-    <div class="sidebar-foot">
-      <div class="sidebar-status"><span class="dot"></span> السيرفر يعمل</div>
-      <button class="btn btn-ghost btn-sm btn-block" id="logoutBtn">تسجيل الخروج</button>
+    <div class="status-pill">
+      <span class="status-dot"></span>
+      <span>متصل</span>
     </div>
-  </aside>
+  </header>
 
-  <main class="main">
-    <div class="topbar">
-      <div>
-        <div class="page-title" id="pageTitle">نظرة عامة</div>
-        <div class="page-sub" id="pageSub">إحصائيات مباشرة عن قاعدة البيانات</div>
-      </div>
-      <div class="server-url"><b>URL</b> <span id="serverUrl"></span></div>
-    </div>
-
-    <section class="section active" id="sec-overview">
-      <div class="stat-grid">
-        <div class="stat-card"><div class="stat-label">المفاتيح النشطة</div><div class="stat-value" id="sKeys">0</div><div class="stat-extra" id="sKeysTotal">من أصل 0</div></div>
-        <div class="stat-card"><div class="stat-label">المستندات المخزنة</div><div class="stat-value" id="sDocs">0</div><div class="stat-extra">في كل المجموعات</div></div>
-        <div class="stat-card"><div class="stat-label">إجمالي الطلبات</div><div class="stat-value" id="sReqs">0</div><div class="stat-extra">منذ الإطلاق</div></div>
-        <div class="stat-card"><div class="stat-label">مدة التشغيل</div><div class="stat-value" id="sUptime">0</div><div class="stat-extra">منذ بدء السيرفر</div></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><div class="card-title">نشاط آخر 24 ساعة</div></div>
-        <div class="chart" id="chart"></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><div class="card-title">آخر الأحداث</div><button class="btn btn-ghost btn-sm" onclick="loadActivity()">تحديث</button></div>
-        <div class="feed" id="recentActivity"></div>
-      </div>
-    </section>
-
-    <section class="section" id="sec-keys">
-      <div class="card">
-        <div class="card-head">
-          <div class="card-title">مفاتيح API</div>
-          <button class="btn btn-gold btn-sm" onclick="openNewKeyModal()">+ مفتاح جديد</button>
+  <!-- Main Content -->
+  <main>
+    <!-- Overview -->
+    <section class="view active" id="view-overview">
+      <div class="wrap">
+        <div class="stat-grid">
+          <div class="stat-box"><b id="sKeys">0</b><span>مفاتيح نشطة</span></div>
+          <div class="stat-box"><b id="sDocs">0</b><span>مستندات</span></div>
+          <div class="stat-box"><b id="sReqs">0</b><span>طلبات API</span></div>
+          <div class="stat-box"><b id="sUptime">0</b><span>مدة التشغيل</span></div>
         </div>
-        <div style="overflow-x:auto">
-          <table><thead><tr><th>الاسم</th><th>المفتاح</th><th>الطلبات</th><th>الحالة</th><th>الإنشاء</th><th></th></tr></thead>
-          <tbody id="keysTable"></tbody></table>
+        <div class="card">
+          <div class="card-head"><div class="card-title">نشاط آخر 24 ساعة</div></div>
+          <div class="chart" id="chart"></div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-head"><div class="card-title">كيفية الاستخدام</div></div>
-        <div style="font-size:12.5px;color:var(--muted);line-height:1.9">
-          أضف المفتاح إلى أي طلب عبر الهيدر <span class="mono">X-API-Key</span>، أو كـ <span class="mono">?key=...</span> في الرابط.
-          <pre style="margin-top:10px;padding:12px;background:#050508;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#d1ccc0;overflow-x:auto;white-space:pre">curl -X POST "BASE_URL/api/db/posts" \
-  -H "X-API-Key: YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"title":"مرحبًا"}'</pre>
+        <div class="card">
+          <div class="card-head"><div class="card-title">آخر الأحداث</div><button class="btn btn-ghost btn-sm" onclick="loadActivity()">تحديث</button></div>
+          <div class="feed" id="recentActivity"></div>
         </div>
       </div>
     </section>
 
-    <section class="section" id="sec-data">
-      <div class="card">
-        <div class="card-head"><div class="card-title">مستكشف البيانات</div></div>
-        <div class="row">
-          <div><label>المفتاح</label><select id="dataKey"></select></div>
-          <div><label>المجموعة</label><select id="dataCollection"><option value="">كل المجموعات</option></select></div>
-          <div style="display:flex;align-items:flex-end"><button class="btn btn-gold btn-sm btn-block" onclick="loadData()">تحميل</button></div>
+    <!-- Keys -->
+    <section class="view" id="view-keys">
+      <div class="wrap">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">مفاتيح API</div>
+            <button class="btn btn-gold btn-sm" onclick="openNewKeyModal()">+ مفتاح جديد</button>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>الاسم</th><th>المفتاح</th><th>الطلبات</th><th>الحالة</th><th>الإنشاء</th><th></th></tr></thead>
+            <tbody id="keysTable"></tbody></table>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-head"><div class="card-title">المستندات</div><span class="badge gold" id="dataCount">0</span></div>
-        <div id="dataList" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
     </section>
 
-    <section class="section" id="sec-live">
-      <div class="card">
-        <div class="card-head">
-          <div class="card-title"><span class="dot" style="display:inline-block;vertical-align:middle;margin-inline-end:8px"></span>البث اللحظي</div>
-          <span class="badge ok" id="liveStatus">متصل</span>
+    <!-- Data Explorer -->
+    <section class="view" id="view-data">
+      <div class="wrap">
+        <div class="card">
+          <div class="card-head"><div class="card-title">مستكشف البيانات</div></div>
+          <div class="field"><label>المفتاح</label><select id="dataKey"></select></div>
+          <div class="field"><label>المجموعة</label><select id="dataCollection"><option value="">كل المجموعات</option></select></div>
+          <button class="btn btn-gold btn-block" onclick="loadData()">تحميل المستندات</button>
         </div>
-        <div class="feed" id="liveFeed"></div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">المستندات</div><span class="badge gold" id="dataCount" style="background:rgba(212,175,106,.15);color:var(--gold-2);padding:2px 8px;border-radius:10px;font-size:11px;">0</span></div>
+          <div id="dataList" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
       </div>
     </section>
 
-    <section class="section" id="sec-playground">
-      <div class="card">
-        <div class="card-head"><div class="card-title">اختبار API</div></div>
-        <div class="play-row">
-          <select id="pgMethod"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select>
-          <input type="text" id="pgPath" placeholder="/api/db/posts">
-          <button class="btn btn-gold btn-sm" onclick="runPlayground()">إرسال ←</button>
+    <!-- Live -->
+    <section class="view" id="view-live">
+      <div class="wrap">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title"><span class="status-dot" style="display:inline-block;margin-inline-end:8px"></span>البث اللحظي</div>
+            <span class="badge ok" id="liveStatus" style="background:rgba(107,211,154,.15);color:var(--ok);padding:2px 8px;border-radius:10px;font-size:11px;">متصل</span>
+          </div>
+          <div class="feed" id="liveFeed"></div>
         </div>
-        <div class="field"><label>المفتاح</label><select id="pgKey"></select></div>
-        <div class="field"><label>الجسم (JSON) — للطلبات POST/PUT/PATCH</label><textarea id="pgBody" placeholder='{"title":"مرحبًا بالعالم"}'></textarea></div>
-        <label>الاستجابة</label>
-        <div class="play-result" id="pgResult">لم يتم التنفيذ بعد...</div>
       </div>
     </section>
 
-    <section class="section" id="sec-settings">
-      <div class="card">
-        <div class="card-head"><div class="card-title">تغيير كلمة المرور</div></div>
-        <div class="field"><label>كلمة المرور الحالية</label><input type="password" id="pwOld"></div>
-        <div class="field"><label>كلمة المرور الجديدة</label><input type="password" id="pwNew" placeholder="6 أحرف على الأقل"></div>
-        <div class="field"><label>تأكيد كلمة المرور</label><input type="password" id="pwNew2"></div>
-        <button class="btn btn-gold btn-sm" onclick="changePassword()">تحديث</button>
+    <!-- Playground -->
+    <section class="view" id="view-playground">
+      <div class="wrap">
+        <div class="card">
+          <div class="card-head"><div class="card-title">اختبار API</div></div>
+          <div style="display:flex; gap:10px; margin-bottom:12px;">
+            <select id="pgMethod" style="flex: 0 0 100px;">
+              <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+            </select>
+            <input type="text" id="pgPath" placeholder="/api/db/posts" style="flex: 1;">
+          </div>
+          <div class="field"><label>المفتاح</label><select id="pgKey"></select></div>
+          <div class="field"><label>الجسم (JSON) — للطلبات POST/PUT/PATCH</label><textarea id="pgBody" placeholder='{"title":"مرحبًا"}'></textarea></div>
+          <button class="btn btn-gold btn-block" onclick="runPlayground()">إرسال الطلب ←</button>
+          <div class="field" style="margin-top: 15px;"><label>الاستجابة</label><div class="play-result" id="pgResult">لم يتم التنفيذ بعد...</div></div>
+        </div>
       </div>
-      <div class="card">
-        <div class="card-head"><div class="card-title">النسخ الاحتياطي</div></div>
-        <p style="color:var(--muted);font-size:12.5px;margin-bottom:14px">نزّل كل مفاتيحك ومستنداتك كملف JSON، أو استعِد نسخة سابقة.</p>
-        <div class="row">
-          <a class="btn btn-ghost btn-sm" href="/api/admin/export" download>⬇ تصدير الكل</a>
-          <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;text-align:center">⬆ استيراد ملف<input type="file" id="importFile" accept=".json" style="display:none"></label>
+    </section>
+
+    <!-- Settings -->
+    <section class="view" id="view-settings">
+      <div class="wrap">
+        <div class="card">
+          <div class="card-head"><div class="card-title">تغيير كلمة المرور</div></div>
+          <div class="field"><label>كلمة المرور الحالية</label><input type="password" id="pwOld"></div>
+          <div class="field"><label>كلمة المرور الجديدة</label><input type="password" id="pwNew" placeholder="6 أحرف على الأقل"></div>
+          <div class="field"><label>تأكيد كلمة المرور</label><input type="password" id="pwNew2"></div>
+          <button class="btn btn-gold btn-block" onclick="changePassword()">تحديث كلمة المرور</button>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">النسخ الاحتياطي</div></div>
+          <p class="muted" style="color:var(--muted); font-size:12.5px; margin-bottom:14px;">نزّل كل مفاتيحك ومستنداتك كملف JSON، أو استعِد نسخة سابقة.</p>
+          <div class="row" style="display: flex; gap:10px;">
+            <a class="btn btn-ghost btn-sm" style="flex:1;" href="/api/admin/export" download>⬇ تصدير الكل</a>
+            <label class="btn btn-ghost btn-sm" style="flex:1; cursor:pointer; text-align:center; margin:0;">
+              ⬆ استيراد ملف<input type="file" id="importFile" accept=".json" style="display:none">
+            </label>
+          </div>
+        </div>
+        <div class="card" style="border-color: rgba(224,107,107,.3);">
+          <div class="card-head"><div class="card-title" style="color:var(--danger);">تسجيل الخروج</div></div>
+          <button class="btn btn-danger btn-block" id="logoutBtn">خروج من الحساب</button>
         </div>
       </div>
     </section>
   </main>
+
+  <!-- Tabbar -->
+  <nav class="tabbar">
+    <button class="tab active" data-tab="overview">
+      <svg viewBox="0 0 24 24"><path d="M3 10.6 12 3l9 7.6V21h-6v-6H9v6H3z"/></svg>
+      <span>نظرة عامة</span>
+    </button>
+    <button class="tab" data-tab="keys">
+      <svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 21 2"/><path d="M15 7l3 3"/></svg>
+      <span>المفاتيح</span>
+    </button>
+    <button class="tab" data-tab="data">
+      <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg>
+      <span>البيانات</span>
+    </button>
+    <button class="tab" data-tab="live">
+      <svg viewBox="0 0 24 24"><path d="M13 2 3 14h8l-1 8 10-12h-8z"/></svg>
+      <span>البث</span>
+    </button>
+    <button class="tab" data-tab="playground">
+      <svg viewBox="0 0 24 24"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
+      <span>اختبار</span>
+    </button>
+    <button class="tab" data-tab="settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>الإعدادات</span>
+    </button>
+  </nav>
 </div>
 
+<!-- Modal New Key -->
 <div class="modal" id="newKeyModal">
   <div class="modal-box">
-    <button class="modal-x" onclick="closeNewKeyModal()">✕</button>
-    <div class="card-title" style="margin-bottom:14px">مفتاح API جديد</div>
-    <div class="field"><label>اسم المفتاح (للعرض فقط)</label><input type="text" id="newKeyName" placeholder="مثال: موقعي الشخصي"></div>
+    <button class="modal-x" onclick="closeModal('newKeyModal')">✕</button>
+    <div class="card-title" style="margin-bottom:14px;">مفتاح API جديد</div>
+    <div class="field"><label>اسم المفتاح</label><input type="text" id="newKeyName" placeholder="مثال: موقعي الشخصي"></div>
     <button class="btn btn-gold btn-block" onclick="createKey()">إنشاء المفتاح ←</button>
-    <div id="newKeyResult" style="margin-top:14px;display:none">
+    <div id="newKeyResult" style="margin-top:14px; display:none;">
       <label>المفتاح الجديد — انسخه الآن</label>
-      <div class="play-result" id="newKeyValue" style="cursor:pointer" onclick="copyKey()"></div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">انقر على المفتاح لنسخه.</div>
+      <div class="play-result" id="newKeyValue" style="cursor:pointer;" onclick="copyKey()"></div>
     </div>
   </div>
 </div>
@@ -948,51 +1047,238 @@ label{display:block;font-size:12px;font-weight:800;margin-bottom:6px;color:#d9d5
 
 <script>
 "use strict";
-const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmtDate=ts=>new Date(ts*1000).toLocaleString('ar',{dateStyle:'short',timeStyle:'short'});
-const fmtDur=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return(d?d+'ي ':'')+(h?h+'س ':'')+m+'د';};
-function toast(msg,type='ok'){const box=$('#toasts'),el=document.createElement('div');el.className='toast '+type;el.textContent=msg;box.appendChild(el);requestAnimationFrame(()=>el.classList.add('in'));setTimeout(()=>{el.classList.remove('in');setTimeout(()=>el.remove(),350)},3000);}
+const $ = s => document.querySelector(s), $$ = s => Array.from(document.querySelectorAll(s));
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate = ts => new Date(ts * 1000).toLocaleString('ar', {dateStyle: 'short', timeStyle: 'short'});
+const fmtDur = s => { const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d+'ي ' : '') + (h ? h+'س ' : '') + m+'د'; };
 
-$('#loginBtn').onclick=async()=>{const pass=$('#loginPass').value;if(!pass)return;const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass})});const d=await r.json();if(d.ok){startApp();}else{toast('كلمة المرور غير صحيحة','err');$('#loginPass').value='';}};
-$('#loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginBtn').click();});
-$('#logoutBtn').onclick=async()=>{await fetch('/logout',{method:'POST'});location.reload();};
+function toast(msg, type = 'ok') {
+  const box = $('#toasts'), el = document.createElement('div');
+  el.className = 'toast ' + type; el.textContent = msg;
+  box.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('in'));
+  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 350); }, 3000);
+}
 
-async function startApp(){$('#loginScreen').style.display='none';$('#app').style.display='grid';$('#serverUrl').textContent=location.origin;await loadStats();await loadKeys();await loadActivity();openSSE();}
+function openModal(id) { $('#' + id).classList.add('open'); }
+function closeModal(id) { $('#' + id).classList.remove('open'); }
 
-const SECTION_INFO={overview:{title:'نظرة عامة',sub:'إحصائيات مباشرة عن قاعدة البيانات'},keys:{title:'مفاتيح API',sub:'إدارة مفاتيح الوصول لكل مشاريعك'},data:{title:'مستكشف البيانات',sub:'تصفح المستندات المخزنة'},live:{title:'البث اللحظي',sub:'مراقبة الأحداث لحظة وقوعها'},playground:{title:'اختبار API',sub:'جرّب كل الطلبات مباشرة'},settings:{title:'الإعدادات',sub:'كلمة المرور والنسخ الاحتياطي'}};
-$$('.nav-item').forEach(el=>el.onclick=()=>{const s=el.dataset.section;$$('.nav-item').forEach(n=>n.classList.toggle('active',n===el));$$('.section').forEach(x=>x.classList.toggle('active',x.id==='sec-'+s));$('#pageTitle').textContent=SECTION_INFO[s].title;$('#pageSub').textContent=SECTION_INFO[s].sub;if(s==='overview'){loadStats();loadActivity();}if(s==='keys')loadKeys();if(s==='data')loadDataKeys();if(s==='playground')loadPlaygroundKeys();});
+// Splash
+setTimeout(() => {
+  const sp = $('#splash');
+  if (sp) { sp.classList.add('hide'); setTimeout(() => sp.remove(), 600); }
+}, 1200);
 
-async function loadStats(){const r=await fetch('/api/admin/stats');if(!r.ok)return;const d=await r.json();$('#sKeys').textContent=d.keys;$('#sKeysTotal').textContent='من أصل '+d.total_keys;$('#sDocs').textContent=d.documents;$('#sReqs').textContent=d.requests;$('#sUptime').textContent=fmtDur(d.uptime);drawChart(d.by_hour);}
-function drawChart(data){const chart=$('#chart'),max=Math.max(1,...data.map(x=>x.count));chart.innerHTML=data.map(x=>`<div class="chart-bar" data-val="${x.count}" style="height:${Math.max(4,x.count/max*100)}%"></div>`).join('');}
+// Login
+$('#loginBtn').onclick = async () => {
+  const pass = $('#loginPass').value;
+  if (!pass) return;
+  const r = await fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pass }) });
+  const d = await r.json();
+  if (d.ok) { startApp(); } else { toast('كلمة المرور غير صحيحة', 'err'); $('#loginPass').value = ''; }
+};
+$('#loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#loginBtn').click(); });
+$('#logoutBtn').onclick = async () => { await fetch('/logout', { method: 'POST' }); location.reload(); };
 
-async function loadActivity(){const r=await fetch('/api/admin/activity?limit=20');const d=await r.json();const box=$('#recentActivity');if(!d.activity.length){box.innerHTML='<div style="padding:20px;color:var(--muted);text-align:center">لا يوجد نشاط بعد</div>';return;}box.innerHTML=d.activity.map(a=>feedItemHTML(a)).join('');}
-function feedItemHTML(a){const cls=a.action.includes('delete')?'delete':a.action.includes('insert')?'insert':'';return `<div class="feed-item ${cls}"><span class="tag">${esc(a.action)}</span><span>${esc(a.collection||'—')}</span><span style="color:var(--muted);font-size:11px">${esc((a.detail||'').slice(0,40))}</span><span class="time">${fmtDate(a.ts)}</span></div>`;}
+function startApp() {
+  $('#loginScreen').style.display = 'none';
+  $('#app').style.display = 'flex';
+  loadStats(); loadKeys(); loadActivity();
+  openSSE();
+}
 
-async function loadKeys(){const r=await fetch('/api/admin/keys');const d=await r.json();const tb=$('#keysTable');if(!d.keys.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">لا توجد مفاتيح</td></tr>';return;}tb.innerHTML=d.keys.map(k=>`<tr><td><b>${esc(k.name)}</b></td><td class="mono">${esc(k.api_key.slice(0,12))}…${esc(k.api_key.slice(-6))}</td><td>${k.requests||0}</td><td><span class="badge ${k.active?'ok':'off'}">${k.active?'نشط':'موقوف'}</span></td><td style="color:var(--muted);font-size:11px">${fmtDate(k.created_at)}</td><td style="text-align:end"><button class="btn btn-ghost btn-sm" onclick="copyText('${esc(k.api_key)}')" title="نسخ">📋</button><button class="btn btn-ghost btn-sm" onclick="toggleKey('${esc(k.api_key)}')" title="إيقاف">${k.active?'⏸':'▶'}</button><button class="btn btn-danger btn-sm" onclick="deleteKey('${esc(k.api_key)}','${esc(k.name)}')" title="حذف">🗑</button></td></tr>`).join('');}
-function copyText(t){navigator.clipboard.writeText(t).then(()=>toast('تم النسخ ✓','ok'));}
-async function toggleKey(k){const r=await fetch('/api/admin/keys/'+k+'/toggle',{method:'POST'});if(r.ok){toast('تم التحديث','ok');loadKeys();}}
-async function deleteKey(k,name){if(!confirm('حذف المفتاح "'+name+'" وكل مستنداته؟'))return;const r=await fetch('/api/admin/keys/'+k,{method:'DELETE'});if(r.ok){toast('تم الحذف','ok');loadKeys();loadStats();}}
-function openNewKeyModal(){$('#newKeyModal').classList.add('open');$('#newKeyResult').style.display='none';$('#newKeyName').value='';}
-function closeNewKeyModal(){$('#newKeyModal').classList.remove('open');}
-async function createKey(){const name=$('#newKeyName').value.trim()||'مفتاح جديد';const r=await fetch('/api/admin/keys',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});const d=await r.json();if(d.ok){$('#newKeyValue').textContent=d.key;$('#newKeyResult').style.display='block';toast('تم إنشاء المفتاح ✓','ok');loadKeys();}}
-function copyKey(){copyText($('#newKeyValue').textContent);}
+// Tab Navigation
+$$('.tab').forEach(tab => {
+  tab.onclick = () => {
+    $$('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const view = tab.dataset.tab;
+    $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
+    if (view === 'overview') { loadStats(); loadActivity(); }
+    if (view === 'keys') loadKeys();
+    if (view === 'data') loadDataKeys();
+    if (view === 'playground') loadPlaygroundKeys();
+  };
+});
 
-async function loadDataKeys(){const r=await fetch('/api/admin/keys');const d=await r.json();const sel=$('#dataKey');sel.innerHTML=d.keys.filter(k=>k.active).map(k=>`<option value="${esc(k.api_key)}">${esc(k.name)}</option>`).join('');if(sel.value)loadCollections();sel.onchange=loadCollections;}
-async function loadCollections(){const key=$('#dataKey').value;if(!key)return;const r=await fetch('/api/admin/collections?key='+encodeURIComponent(key));const d=await r.json();const sel=$('#dataCollection');sel.innerHTML='<option value="">كل المجموعات</option>'+d.collections.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');}
-async function loadData(){const key=$('#dataKey').value,col=$('#dataCollection').value;if(!key){toast('اختر مفتاحًا أولًا','err');return;}const r=await fetch('/api/admin/documents?key='+encodeURIComponent(key)+'&collection='+encodeURIComponent(col));const d=await r.json();$('#dataCount').textContent=d.documents.length;const box=$('#dataList');if(!d.documents.length){box.innerHTML='<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px">لا توجد مستندات</div>';return;}box.innerHTML=d.documents.map(doc=>`<div class="card" style="margin:0;padding:14px;background:#0a0a0f"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="mono" style="color:var(--gold2)">${esc(doc.id)}</div><div style="display:flex;gap:6px;align-items:center"><span class="badge gold">${esc(doc.collection)}</span><button class="btn btn-danger btn-sm" onclick="deleteDoc('${esc(doc.id)}')">🗑</button></div></div><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#d1ccc0;white-space:pre-wrap;word-break:break-all;margin:0">${esc(JSON.stringify(doc.data,null,2))}</pre></div>`).join('');}
-async function deleteDoc(id){if(!confirm('حذف المستند؟'))return;const r=await fetch('/api/admin/documents/'+id,{method:'DELETE'});if(r.ok){toast('تم الحذف','ok');loadData();loadStats();}}
+// Stats
+async function loadStats() {
+  const r = await fetch('/api/admin/stats');
+  if (!r.ok) return;
+  const d = await r.json();
+  $('#sKeys').textContent = d.keys;
+  $('#sDocs').textContent = d.documents;
+  $('#sReqs').textContent = d.requests;
+  $('#sUptime').textContent = fmtDur(d.uptime);
+  drawChart(d.by_hour);
+}
 
-async function loadPlaygroundKeys(){const r=await fetch('/api/admin/keys');const d=await r.json();$('#pgKey').innerHTML=d.keys.filter(k=>k.active).map(k=>`<option value="${esc(k.api_key)}">${esc(k.name)}</option>`).join('');}
-async function runPlayground(){const method=$('#pgMethod').value,path=$('#pgPath').value,key=$('#pgKey').value,body=$('#pgBody').value.trim();if(!path){toast('أدخل مسارًا','err');return;}const opts={method,headers:{'X-API-Key':key}};if(['POST','PUT','PATCH'].includes(method)&&body){opts.headers['Content-Type']='application/json';opts.body=body;}try{const r=await fetch(path,opts);const text=await r.text();let out;try{out=JSON.stringify(JSON.parse(text),null,2);}catch(e){out=text;}$('#pgResult').textContent='HTTP '+r.status+'\n\n'+out;}catch(e){$('#pgResult').textContent='خطأ: '+e.message;}}
+function drawChart(data) {
+  const chart = $('#chart'), max = Math.max(1, ...data.map(x => x.count));
+  chart.innerHTML = data.map(x => `<div class="chart-bar" style="height:${Math.max(4, x.count / max * 100)}%" title="${x.count}"></div>`).join('');
+}
 
-let es=null;
-function openSSE(){if(es)es.close();es=new EventSource('/api/admin/stream');es.addEventListener('hello',()=>{$('#liveStatus').textContent='متصل';$('#liveStatus').className='badge ok';});es.addEventListener('activity',e=>{try{const data=JSON.parse(e.data),feed=$('#liveFeed'),item=document.createElement('div');const cls=data.action.includes('delete')?'delete':data.action.includes('insert')?'insert':'';item.className='feed-item '+cls;item.innerHTML=`<span class="tag">${esc(data.action)}</span><span>${esc(data.collection||'—')}</span><span style="color:var(--muted);font-size:11px">${esc((data.detail||'').slice(0,50))}</span><span class="time">${fmtDate(data.ts)}</span>`;feed.insertBefore(item,feed.firstChild);while(feed.children.length>100)feed.removeChild(feed.lastChild);}catch(e){}});es.onerror=()=>{$('#liveStatus').textContent='منقطع';$('#liveStatus').className='badge off';setTimeout(openSSE,3000);};}
+// Activity
+async function loadActivity() {
+  const r = await fetch('/api/admin/activity?limit=20');
+  const d = await r.json();
+  const box = $('#recentActivity');
+  if (!d.activity.length) { box.innerHTML = '<div style="padding:20px;color:var(--muted);text-align:center">لا يوجد نشاط بعد</div>'; return; }
+  box.innerHTML = d.activity.map(a => {
+    const cls = a.action.includes('delete') ? 'delete' : a.action.includes('insert') ? 'insert' : '';
+    return `<div class="feed-item ${cls}"><span class="tag">${esc(a.action)}</span><span>${esc(a.collection || '—')}</span><span style="color:var(--muted);font-size:11px">${esc((a.detail || '').slice(0,40))}</span><span class="time">${fmtDate(a.ts)}</span></div>`;
+  }).join('');
+}
 
-async function changePassword(){const old=$('#pwOld').value,nw=$('#pwNew').value,nw2=$('#pwNew2').value;if(nw!==nw2){toast('تأكيد كلمة المرور غير مطابق','err');return;}if(nw.length<6){toast('6 أحرف على الأقل','err');return;}const r=await fetch('/api/admin/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old,new:nw})});if(r.ok){toast('تم التحديث ✓','ok');$('#pwOld').value=$('#pwNew').value=$('#pwNew2').value='';}else toast('كلمة المرور الحالية غير صحيحة','err');}
-$('#importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;const text=await f.text();try{const data=JSON.parse(text);const r=await fetch('/api/admin/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const d=await r.json();if(d.ok){toast(`تم الاستيراد: ${d.keys} مفتاح، ${d.documents} مستند`,'ok');loadKeys();loadStats();}else toast('فشل الاستيراد','err');}catch(e){toast('الملف غير صالح','err');}};
+// Keys
+async function loadKeys() {
+  const r = await fetch('/api/admin/keys');
+  const d = await r.json();
+  const tb = $('#keysTable');
+  if (!d.keys.length) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">لا توجد مفاتيح</td></tr>'; return; }
+  tb.innerHTML = d.keys.map(k => `
+    <tr>
+      <td><b>${esc(k.name)}</b></td>
+      <td class="mono">${esc(k.api_key.slice(0,8))}…${esc(k.api_key.slice(-4))}</td>
+      <td>${k.requests || 0}</td>
+      <td><span class="badge ${k.active ? 'ok' : 'off'}" style="padding:2px 8px;border-radius:10px;font-size:10px;background:${k.active?'rgba(107,211,154,.15);color:var(--ok)':'rgba(224,107,107,.15);color:var(--danger)'}">${k.active ? 'نشط' : 'موقوف'}</span></td>
+      <td style="color:var(--muted);font-size:11px">${fmtDate(k.created_at)}</td>
+      <td style="text-align:end">
+        <button class="btn btn-ghost btn-sm" onclick="copyText('${esc(k.api_key)}')">📋</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleKey('${esc(k.api_key)}')">${k.active ? '⏸' : '▶'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteKey('${esc(k.api_key)}','${esc(k.name)}')">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+}
 
-(async()=>{const r=await fetch('/api/admin/check');const d=await r.json();if(d.admin)startApp();})();
+function copyText(t) { navigator.clipboard.writeText(t).then(() => toast('تم النسخ ✓', 'ok')); }
+async function toggleKey(k) { const r = await fetch('/api/admin/keys/' + k + '/toggle', { method: 'POST' }); if (r.ok) { toast('تم التحديث', 'ok'); loadKeys(); } }
+async function deleteKey(k, name) { if (!confirm('حذف المفتاح "' + name + '" وكل مستنداته؟')) return; const r = await fetch('/api/admin/keys/' + k, { method: 'DELETE' }); if (r.ok) { toast('تم الحذف', 'ok'); loadKeys(); loadStats(); } }
+
+function openNewKeyModal() { openModal('newKeyModal'); $('#newKeyResult').style.display = 'none'; $('#newKeyName').value = ''; }
+async function createKey() {
+  const name = $('#newKeyName').value.trim() || 'مفتاح جديد';
+  const r = await fetch('/api/admin/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+  const d = await r.json();
+  if (d.ok) { $('#newKeyValue').textContent = d.key; $('#newKeyResult').style.display = 'block'; toast('تم إنشاء المفتاح ✓', 'ok'); loadKeys(); }
+}
+function copyKey() { copyText($('#newKeyValue').textContent); }
+
+// Data Explorer
+async function loadDataKeys() {
+  const r = await fetch('/api/admin/keys');
+  const d = await r.json();
+  const sel = $('#dataKey');
+  sel.innerHTML = d.keys.filter(k => k.active).map(k => `<option value="${esc(k.api_key)}">${esc(k.name)}</option>`).join('');
+  if (sel.value) loadCollections();
+  sel.onchange = loadCollections;
+}
+
+async function loadCollections() {
+  const key = $('#dataKey').value;
+  if (!key) return;
+  const r = await fetch('/api/admin/collections?key=' + encodeURIComponent(key));
+  const d = await r.json();
+  const sel = $('#dataCollection');
+  sel.innerHTML = '<option value="">كل المجموعات</option>' + d.collections.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+}
+
+async function loadData() {
+  const key = $('#dataKey').value, col = $('#dataCollection').value;
+  if (!key) { toast('اختر مفتاحًا أولًا', 'err'); return; }
+  const r = await fetch('/api/admin/documents?key=' + encodeURIComponent(key) + '&collection=' + encodeURIComponent(col));
+  const d = await r.json();
+  $('#dataCount').textContent = d.documents.length;
+  const box = $('#dataList');
+  if (!d.documents.length) { box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px">لا توجد مستندات</div>'; return; }
+  box.innerHTML = d.documents.map(doc => `
+    <div class="card" style="margin:0;padding:14px;background:#0a0a0f">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="mono" style="color:var(--gold-2)">${esc(doc.id)}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="badge gold" style="background:rgba(212,175,106,.15);color:var(--gold-2);padding:2px 8px;border-radius:10px;font-size:10px;">${esc(doc.collection)}</span>
+          <button class="btn btn-danger btn-sm" onclick="deleteDoc('${esc(doc.id)}')">🗑</button>
+        </div>
+      </div>
+      <pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#d1ccc0;white-space:pre-wrap;word-break:break-all;margin:0">${esc(JSON.stringify(doc.data, null, 2))}</pre>
+    </div>
+  `).join('');
+}
+
+async function deleteDoc(id) {
+  if (!confirm('حذف المستند؟')) return;
+  const r = await fetch('/api/admin/documents/' + id, { method: 'DELETE' });
+  if (r.ok) { toast('تم الحذف', 'ok'); loadData(); loadStats(); }
+}
+
+// Playground
+async function loadPlaygroundKeys() {
+  const r = await fetch('/api/admin/keys');
+  const d = await r.json();
+  $('#pgKey').innerHTML = d.keys.filter(k => k.active).map(k => `<option value="${esc(k.api_key)}">${esc(k.name)}</option>`).join('');
+}
+
+async function runPlayground() {
+  const method = $('#pgMethod').value, path = $('#pgPath').value, key = $('#pgKey').value, body = $('#pgBody').value.trim();
+  if (!path) { toast('أدخل مسارًا', 'err'); return; }
+  const opts = { method, headers: { 'X-API-Key': key } };
+  if (['POST', 'PUT', 'PATCH'].includes(method) && body) { opts.headers['Content-Type'] = 'application/json'; opts.body = body; }
+  try {
+    const r = await fetch(path, opts);
+    const text = await r.text();
+    let out; try { out = JSON.stringify(JSON.parse(text), null, 2); } catch (e) { out = text; }
+    $('#pgResult').textContent = 'HTTP ' + r.status + '\n\n' + out;
+  } catch (e) { $('#pgResult').textContent = 'خطأ: ' + e.message; }
+}
+
+// SSE
+let es = null;
+function openSSE() {
+  if (es) es.close();
+  es = new EventSource('/api/admin/stream');
+  es.addEventListener('hello', () => { $('#liveStatus').textContent = 'متصل'; $('#liveStatus').style.color = 'var(--ok)'; });
+  es.addEventListener('activity', e => {
+    try {
+      const data = JSON.parse(e.data), feed = $('#liveFeed'), item = document.createElement('div');
+      const cls = data.action.includes('delete') ? 'delete' : data.action.includes('insert') ? 'insert' : '';
+      item.className = 'feed-item ' + cls;
+      item.innerHTML = `<span class="tag">${esc(data.action)}</span><span>${esc(data.collection || '—')}</span><span style="color:var(--muted);font-size:11px">${esc((data.detail || '').slice(0,50))}</span><span class="time">${fmtDate(data.ts)}</span>`;
+      feed.insertBefore(item, feed.firstChild);
+      while (feed.children.length > 100) feed.removeChild(feed.lastChild);
+    } catch (e) {}
+  });
+  es.onerror = () => { $('#liveStatus').textContent = 'منقطع'; $('#liveStatus').style.color = 'var(--danger)'; setTimeout(openSSE, 3000); };
+}
+
+// Settings
+async function changePassword() {
+  const old = $('#pwOld').value, nw = $('#pwNew').value, nw2 = $('#pwNew2').value;
+  if (nw !== nw2) { toast('تأكيد كلمة المرور غير مطابق', 'err'); return; }
+  if (nw.length < 6) { toast('6 أحرف على الأقل', 'err'); return; }
+  const r = await fetch('/api/admin/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ old, new: nw }) });
+  if (r.ok) { toast('تم التحديث ✓', 'ok'); $('#pwOld').value = $('#pwNew').value = $('#pwNew2').value = ''; }
+  else toast('كلمة المرور الحالية غير صحيحة', 'err');
+}
+
+$('#importFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await f.text();
+  try {
+    const data = JSON.parse(text);
+    const r = await fetch('/api/admin/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const d = await r.json();
+    if (d.ok) { toast(`تم الاستيراد: ${d.keys} مفتاح، ${d.documents} مستند`, 'ok'); loadKeys(); loadStats(); }
+    else toast('فشل الاستيراد', 'err');
+  } catch (e) { toast('الملف غير صالح', 'err'); }
+};
+
+// Check session
+(async () => {
+  const r = await fetch('/api/admin/check');
+  const d = await r.json();
+  if (d.admin) startApp();
+})();
 </script>
 </body>
 </html>
